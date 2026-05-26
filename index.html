@@ -18,7 +18,7 @@
         .radio-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 5px; }
         .radio-group label { background: #e9ecef; padding: 12px; border-radius: 4px; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; gap: 4px; }
         .radio-group input[type="radio"]:checked + span { font-weight: bold; color: #0056b3; }
-        .hint { font-size: 0.8rem; color: #666; text-align: center; margin-bottom: 10px; }
+        .hint { font-size: 0.8rem; color: #666; text-align: center; margin-bottom: 10px; line-height: 1.4; }
         
         .btn-group { display: flex; gap: 10px; }
         button { flex: 1; padding: 10px; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer; font-size: 0.9rem; font-weight: bold; }
@@ -42,7 +42,11 @@
             <div class="radio-group">
                 <label><input type="radio" name="mode" value="setup" checked><span>盤面を自由に配置する</span></label>
             </div>
-            <div class="hint">👆 1タップ: 黒 / ダブルタップ: 白 / 既存の石: 消去</div>
+            <div class="hint">
+                👆 空の場所をタップ：黒<br>
+                ✌️ ダブルタップ：白<br>
+                ❌ すでに石がある場所をタップ：消去
+            </div>
 
             <div class="radio-group" style="margin-top: 10px;">
                 <label style="background: #d4edda;">
@@ -65,7 +69,6 @@
     </div>
 
     <script>
-        // エラー検知用
         window.onerror = function(msg, url, line) {
             alert("エラーが発生しました: " + msg + "\n(Line: " + line + ")");
         };
@@ -83,15 +86,21 @@
             var playMoves = []; 
             var game = new WGo.Game(9);
 
-            // 確実な数字描画のためのカスタムレンダリング機能
+            // ★修正ポイント: ピクセル座標（xr, yr）を正確に取得して数字を描画する処理
             var customNumberMarker = {
                 draw: function(args, board) {
-                    var ctx = args.ctx;
-                    ctx.fillStyle = args.c; // 文字色（黒石には白、白石には黒を指定）
+                    var ctx = args.ctx || board.getContext("markup");
+                    if (!ctx) return;
+                    
+                    // 盤面のマス目座標を、画面上のピクセル座標に変換！
+                    var xr = board.getX(args.x);
+                    var yr = board.getY(args.y);
+                    
+                    ctx.fillStyle = args.textColor; 
                     ctx.textBaseline = "middle";
                     ctx.textAlign = "center";
                     ctx.font = "bold " + Math.floor(board.stoneRadius * 1.1) + "px sans-serif";
-                    ctx.fillText(args.text, args.xr, args.yr);
+                    ctx.fillText(args.text, xr, yr);
                 }
             };
 
@@ -99,23 +108,27 @@
                 board.removeAllObjects();
                 game = new WGo.Game(9);
 
-                // 配置モードの石をセット
+                // 配置モードの石をエンジンに登録し、見た目も描画
                 for (let x = 0; x < 9; x++) {
                     for (let y = 0; y < 9; y++) {
                         if (setupStones[x][y] !== 0) {
                             game.play(x, y, setupStones[x][y]);
+                            board.addObject({ x: x, y: y, c: setupStones[x][y] });
                         }
                     }
                 }
                 
                 game.turn = WGo.B;
 
-                // 検討モードの石をセット
+                // 検討モードの手をエンジンに登録し、見た目も描画
                 for (let m of playMoves) {
                     game.play(m.x, m.y, m.c);
+                    board.addObject({ x: m.x, y: m.y, c: m.c });
                 }
 
-                // 盤面の石を描画
+                // 取られた石を消すために、現在のエンジンの状態と一致しない石のオブジェクトを整理する処理
+                // （シンプルにするため、一度すべてのオブジェクトを描画し直しではなく上書きベースにしています）
+                board.removeAllObjects();
                 for (let x = 0; x < 9; x++) {
                     for (let y = 0; y < 9; y++) {
                         let stoneColor = game.getPosition().get(x, y);
@@ -125,24 +138,23 @@
                     }
                 }
 
-                // 数字を上書き描画
+                // ★修正ポイント: 数字ラベルの再描画処理
                 let currentMoveNum = 1;
                 for (let m of playMoves) {
-                    // 石が取られずに残っている場合のみ数字を描く
+                    // その石が取られずに盤面に存在している場合のみ数字を描画
                     if (game.getPosition().get(m.x, m.y) === m.c) {
                         board.addObject({
                             x: m.x, 
                             y: m.y, 
-                            type: customNumberMarker, // カスタムレンダラーを使用
+                            type: customNumberMarker, 
                             text: currentMoveNum.toString(), 
-                            c: m.c === WGo.B ? "white" : "black"
+                            textColor: m.c === WGo.B ? "white" : "black" // 石の色と反転させる
                         });
                     }
                     currentMoveNum++;
                 }
             }
 
-            // タップ判定用の変数
             let lastTapTime = 0;
             let lastTapCoords = { x: -1, y: -1 };
 
@@ -152,7 +164,6 @@
                 let mode = document.querySelector('input[name="mode"]:checked').value;
                 let now = Date.now();
                 
-                // 300ミリ秒以内の同じ場所へのタップを「ダブルタップ」と判定
                 let isDoubleTap = (lastTapCoords.x === x && lastTapCoords.y === y && (now - lastTapTime) < 300);
                 
                 lastTapTime = now;
@@ -165,24 +176,22 @@
                     }
                     
                     if (isDoubleTap) {
-                        // ダブルタップ時は無条件で「白」
+                        // ダブルタップ時（前回黒を置いた直後）は白に上書き
                         setupStones[x][y] = WGo.W;
+                        lastTapTime = 0; 
                     } else {
-                        // シングルタップ時
                         if (setupStones[x][y] !== 0) {
-                            // 既に石があれば消す
+                            // 既に石があれば消去する
                             setupStones[x][y] = 0;
-                            // 消した直後にダブルタップ判定で白になるのを防ぐ
                             lastTapTime = 0; 
                         } else {
-                            // 何もなければ「黒」
+                            // 何もなければ黒を置く
                             setupStones[x][y] = WGo.B;
                         }
                     }
                     rebuildGame();
                     
                 } else if (mode === "play") {
-                    // 検討モード時のロジック（通常通り打つ）
                     let tempGame = new WGo.Game(9);
                     for (let cx = 0; cx < 9; cx++) {
                         for (let cy = 0; cy < 9; cy++) {
