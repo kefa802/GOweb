@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>9路盤 検討アプリ</title>
-    <script src="https://cdn.jsdelivr.net/gh/waltheri/wgo.js@master/wgo.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/waltheri/wgo.js@master/wgo/wgo.min.js"></script>
     <style>
         body { 
             font-family: sans-serif; 
@@ -15,7 +15,6 @@
             background-color: #f9f9f9;
         }
         #board { 
-            /* スマホでもはみ出さないように最大幅を指定 */
             width: 100%; 
             max-width: 400px; 
             margin-bottom: 20px; 
@@ -29,29 +28,31 @@
     <div id="board"></div>
 
     <script>
-        // スマホの画面幅に合わせて碁盤のサイズを自動調整
-        var boardWidth = window.innerWidth < 420 ? window.innerWidth - 20 : 400;
+        // CDNからのファイルダウンロード完了を待ってから実行
+        window.onload = function() {
+            // スマホの画面幅に合わせて碁盤のサイズを自動調整
+            var boardWidth = window.innerWidth < 420 ? window.innerWidth - 20 : 400;
 
-        // ライブラリが読み込めているかのチェック
-        if (typeof WGo === "undefined") {
-            document.getElementById("board").innerHTML = "<p style='color:red; font-weight:bold;'>WGo.jsの読み込みに失敗しました。</p>";
-        } else {
-            var board = new WGo.Board(document.getElementById("board"), {
-                width: boardWidth,
-                size: 9
-            });
+            if (typeof WGo === "undefined") {
+                document.getElementById("board").innerHTML = "<p style='color:red; font-weight:bold;'>WGo.jsの読み込みに失敗しました。</p>";
+            } else {
+                var board = new WGo.Board(document.getElementById("board"), {
+                    width: boardWidth,
+                    size: 9
+                });
 
-            var game = new WGo.Game(9);
+                var game = new WGo.Game(9);
 
-            board.addEventListener("click", function(x, y) {
-                var result = game.play(x, y);
-                if(typeof result == "number") {
-                    console.log("そこには打てません。エラーコード:", result);
-                } else {
-                    board.update(game.getPosition());
-                }
-            });
-        }
+                board.addEventListener("click", function(x, y) {
+                    var result = game.play(x, y);
+                    if(typeof result == "number") {
+                        console.log("そこには打てません。エラーコード:", result);
+                    } else {
+                        board.update(game.getPosition());
+                    }
+                });
+            }
+        };
     </script>
 
 </body>
