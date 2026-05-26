@@ -2,58 +2,212 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>9路盤 検討アプリ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>9路盤 詰碁・検討アプリ</title>
     <script src="https://cdn.jsdelivr.net/gh/waltheri/wgo.js@master/wgo/wgo.min.js"></script>
     <style>
-        body { 
-            font-family: sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            margin-top: 20px; 
-            background-color: #f9f9f9;
-        }
-        #board { 
-            width: 100%; 
-            max-width: 400px; 
-            margin-bottom: 20px; 
-        }
+        body { font-family: sans-serif; background: #f4f6f9; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; }
+        h2 { font-size: 1.1rem; margin: 5px 0 15px 0; color: #333; }
+        #board { width: 100%; max-width: 400px; margin-bottom: 15px; touch-action: manipulation; }
+        
+        .controls { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); width: 100%; max-width: 380px; margin-bottom: 15px; box-sizing: border-box; }
+        .control-group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+        .control-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        
+        .mode-title { font-weight: bold; font-size: 0.9rem; margin-bottom: 8px; display: block; color: #555; }
+        .radio-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+        .radio-group label { background: #e9ecef; padding: 8px 12px; border-radius: 4px; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+        .radio-group input[type="radio"]:checked + span { font-weight: bold; color: #0056b3; }
+        
+        .btn-group { display: flex; gap: 10px; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer; font-size: 0.9rem; font-weight: bold; }
+        button:active { background: #0056b3; }
+        button.btn-reset { background: #6c757d; }
+        button.btn-reset:active { background: #5a6268; }
+        
+        textarea { width: 100%; height: 60px; box-sizing: border-box; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 4px; padding: 8px; font-size: 0.8rem; resize: none; }
     </style>
 </head>
 <body>
 
-    <h2 style="font-size: 1.2rem;">9路盤 検討アプリ</h2>
+    <h2>9路盤 詰碁・検討アプリ</h2>
     
     <div id="board"></div>
 
+    <div class="controls">
+        <div class="control-group">
+            <span class="mode-title">1. モード選択</span>
+            <div class="radio-group">
+                <label><input type="radio" name="mode" value="setup_b" checked><span>黒を配置</span></label>
+                <label><input type="radio" name="mode" value="setup_w"><span>白を配置</span></label>
+                <label><input type="radio" name="mode" value="setup_e"><span>消しゴム</span></label>
+            </div>
+            <div class="radio-group">
+                <label style="background: #d4edda; width: 100%; justify-content: center;">
+                    <input type="radio" name="mode" value="play" id="mode-play">
+                    <span style="color: #155724; font-size: 1rem;">▶ 検討を開始する（数字あり）</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="control-group btn-group">
+            <button id="btn-undo">待った（1手戻る）</button>
+            <button id="btn-reset" class="btn-reset">検討をリセット</button>
+        </div>
+
+        <div class="control-group">
+            <span class="mode-title">詰碁SGF読み込み</span>
+            <textarea id="sgf-input" placeholder="他のサイトのSGF（テキスト）をここにペースト"></textarea>
+            <button id="btn-load-sgf" style="background: #28a745;">盤面に反映する</button>
+        </div>
+    </div>
+
     <script>
-        // CDNからのファイルダウンロード完了を待ってから実行
         window.onload = function() {
-            // スマホの画面幅に合わせて碁盤のサイズを自動調整
             var boardWidth = window.innerWidth < 420 ? window.innerWidth - 20 : 400;
-
             if (typeof WGo === "undefined") {
-                document.getElementById("board").innerHTML = "<p style='color:red; font-weight:bold;'>WGo.jsの読み込みに失敗しました。</p>";
-            } else {
-                var board = new WGo.Board(document.getElementById("board"), {
-                    width: boardWidth,
-                    size: 9
-                });
-
-                var game = new WGo.Game(9);
-
-                board.addEventListener("click", function(x, y) {
-                    var result = game.play(x, y);
-                    if(typeof result == "number") {
-                        console.log("そこには打てません。エラーコード:", result);
-                    } else {
-                        board.update(game.getPosition());
-                    }
-                });
+                document.getElementById("board").innerHTML = "<p style='color:red;'>WGo.jsの読み込みに失敗しました。</p>";
+                return;
             }
+
+            var board = new WGo.Board(document.getElementById("board"), { width: boardWidth, size: 9 });
+            
+            // 状態管理変数
+            var setupStones = Array(9).fill(0).map(() => Array(9).fill(0)); // 盤面配置用の配列
+            var playMoves = []; // 検討モードで打たれた手の履歴
+            var game = new WGo.Game(9);
+
+            // 盤面を再計算して描画する関数（常に履歴から再構築することでバグを防ぐ）
+            function rebuildGame() {
+                board.removeAllObjects();
+                game = new WGo.Game(9);
+
+                // 1. 配置モードの石を強制的に置く
+                for (let x = 0; x < 9; x++) {
+                    for (let y = 0; y < 9; y++) {
+                        if (setupStones[x][y] !== 0) {
+                            game.play(x, y, setupStones[x][y]);
+                        }
+                    }
+                }
+                
+                // 詰碁は黒から打つことが多いため、配置後は手番を黒にリセット
+                game.turn = WGo.B;
+
+                // 2. 検討モードの手を順番に置く
+                for (let m of playMoves) {
+                    game.play(m.x, m.y, m.c);
+                }
+
+                // 3. 盤面の見た目を更新
+                board.update(game.getPosition());
+
+                // 4. 石の上に手数の数字を描画する
+                let currentMoveNum = 1;
+                for (let m of playMoves) {
+                    // 石が取られずに盤面に残っているか確認
+                    if (game.getPosition().get(m.x, m.y) === m.c) {
+                        board.addObject({
+                            x: m.x, 
+                            y: m.y, 
+                            type: "label", 
+                            text: currentMoveNum.toString(), 
+                            c: m.c === WGo.B ? "white" : "black" // 黒石には白文字、白石には黒文字
+                        });
+                    }
+                    currentMoveNum++;
+                }
+            }
+
+            // 碁盤をクリック・タップした時の処理
+            board.addEventListener("click", function(x, y) {
+                let mode = document.querySelector('input[name="mode"]:checked').value;
+
+                if (mode.startsWith("setup")) {
+                    // 検討が進んでいる状態で盤面をいじる場合はリセット確認
+                    if (playMoves.length > 0) {
+                        if(!confirm("盤面を再配置すると、現在の検討手順はリセットされます。よろしいですか？")) return;
+                        playMoves = [];
+                    }
+                    
+                    if (mode === "setup_b") setupStones[x][y] = WGo.B;
+                    else if (mode === "setup_w") setupStones[x][y] = WGo.W;
+                    else if (mode === "setup_e") setupStones[x][y] = 0;
+                    
+                    rebuildGame();
+                    
+                } else if (mode === "play") {
+                    // ルール判定用に仮のゲーム空間を作り、合法手（打てる場所）かチェック
+                    let tempGame = new WGo.Game(9);
+                    for (let cx = 0; cx < 9; cx++) {
+                        for (let cy = 0; cy < 9; cy++) {
+                            if (setupStones[cx][cy] !== 0) tempGame.play(cx, cy, setupStones[cx][cy]);
+                        }
+                    }
+                    tempGame.turn = WGo.B;
+                    for (let m of playMoves) tempGame.play(m.x, m.y, m.c);
+
+                    let currentTurn = tempGame.turn; // 今打つべき色（黒か白）
+                    let result = tempGame.play(x, y, currentTurn);
+                    
+                    // 打てない場所（石がすでにある、自殺手など）の場合は何もしない
+                    if (typeof result === "number") return; 
+
+                    // 打てるなら履歴に追加して再描画
+                    playMoves.push({ x: x, y: y, c: currentTurn });
+                    rebuildGame();
+                }
+            });
+
+            // ④ 待った（1手戻る）機能
+            document.getElementById("btn-undo").addEventListener("click", function() {
+                if (playMoves.length > 0) {
+                    playMoves.pop(); // 履歴の最後を削除
+                    rebuildGame();
+                }
+            });
+
+            // 検討のみをリセットする機能
+            document.getElementById("btn-reset").addEventListener("click", function() {
+                playMoves = [];
+                rebuildGame();
+            });
+
+            // ② SGF読み込み機能（AB=黒石配置、AW=白石配置を自動抽出）
+            document.getElementById("btn-load-sgf").addEventListener("click", function() {
+                let sgf = document.getElementById("sgf-input").value;
+                if(!sgf) return;
+                
+                // 現在の配置と検討手順をリセット
+                setupStones = Array(9).fill(0).map(() => Array(9).fill(0));
+                playMoves = [];
+
+                // SGFのテキストから石の座標を抽出するロジック
+                let parseSGF = function(regex, color) {
+                    let match = sgf.match(regex);
+                    if(match) {
+                        let stones = match[1].match(/\[[a-i]{2}\]/g);
+                        if(stones) {
+                            stones.forEach(s => {
+                                // SGFのアルファベット座標(a~i)を0~8の数字に変換
+                                let x = s.charCodeAt(1) - 97;
+                                let y = s.charCodeAt(2) - 97;
+                                if(x>=0 && x<9 && y>=0 && y<9) setupStones[x][y] = color;
+                            });
+                        }
+                    }
+                };
+                
+                parseSGF(/AB((?:\[[a-i]{2}\])+)/, WGo.B); // 黒石の読み込み
+                parseSGF(/AW((?:\[[a-i]{2}\])+)/, WGo.W); // 白石の読み込み
+                
+                rebuildGame();
+                document.getElementById("mode-play").checked = true; // 自動で「検討モード」に切り替え
+            });
+
+            // 初期化実行
+            rebuildGame();
         };
     </script>
-
 </body>
 </html>
