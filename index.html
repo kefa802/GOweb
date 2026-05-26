@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>9路盤 検討アプリ</title>
+    <!-- WGo.jsの読み込み -->
+    <script src="https://cdn.jsdelivr.net/gh/waltheri/wgo.js/wgo.min.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; margin-top: 50px; }
+        #board { width: 400px; margin-bottom: 20px; }
+        .controls { display: flex; gap: 10px; }
+        button { padding: 8px 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h2>9路盤 検討アプリ</h2>
+    
+    <!-- 碁盤を描画するエリア -->
+    <div id="board"></div>
+
+    <script>
+        // 1. 9路盤のUI（見た目）を初期化
+        var board = new WGo.Board(document.getElementById("board"), {
+            width: 400,
+            size: 9 // ★ここを9にするだけで9路盤になります
+        });
+
+        // 2. 囲碁のルール（石の死活、コウなど）を管理するロジックを9路で初期化
+        var game = new WGo.Game(9);
+
+        // 3. 盤面をクリックしたときの処理
+        board.addEventListener("click", function(x, y) {
+            // クリックした座標に石が打てるか判定（打てない場合はエラーが返る）
+            var result = game.play(x, y);
+
+            if(typeof result == "number") {
+                // エラーコードが返ってきた場合（既に石がある、自殺手など）
+                console.log("そこには打てません。エラーコード:", result);
+            } else {
+                // 正常に打てた場合、盤面のUIを最新状態に更新（取られた石も自動で消えます）
+                board.update(game.getPosition());
+            }
+        });
+    </script>
+
+</body>
+</html>
