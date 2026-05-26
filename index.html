@@ -82,15 +82,11 @@
 
             var board = new WGo.Board(document.getElementById("board"), { width: boardWidth, size: 9 });
             
-            var setupStones = Array(9).fill(0).map(() => Array(9).fill(0)); 
-            var playMoves = []; 
-            var game = new WGo.Game(9);
-
-            // ★修正ポイント: "foreground"（最前面レイヤー）を明示的に指定して描画
-            var customNumberMarker = {
-                layer: "foreground", // これが抜けていたため見えなくなっていました
+            // ★大修正：WGo.jsの描画辞書に「数字（moveNumber）」を公式登録する
+            WGo.Board.draw.moveNumber = {
+                layer: "stones", // 確実に存在する石のレイヤーを指定
                 draw: function(args, board) {
-                    var ctx = board.getContext("foreground"); // 確実に存在するレイヤーを指定
+                    var ctx = args.ctx;
                     if (!ctx) return;
                     
                     var xr = board.getX(args.x);
@@ -103,6 +99,10 @@
                     ctx.fillText(args.text, xr, yr);
                 }
             };
+
+            var setupStones = Array(9).fill(0).map(() => Array(9).fill(0)); 
+            var playMoves = []; 
+            var game = new WGo.Game(9);
 
             function rebuildGame() {
                 board.removeAllObjects();
@@ -134,16 +134,16 @@
                     }
                 }
 
-                // 4. その上に数字を描画
+                // 4. その上に、登録した公式機能を使って数字を描画
                 let currentMoveNum = 1;
                 for (let m of playMoves) {
                     if (game.getPosition().get(m.x, m.y) === m.c) {
                         board.addObject({
                             x: m.x, 
                             y: m.y, 
-                            type: customNumberMarker, // 修正したカスタムマーカーを使用
+                            type: "moveNumber", // ★上で登録したカスタム描画を呼び出す
                             text: currentMoveNum.toString(), 
-                            textColor: m.c === WGo.B ? "white" : "black" // 黒石には白文字、白石には黒文字
+                            textColor: m.c === WGo.B ? "white" : "black"
                         });
                     }
                     currentMoveNum++;
