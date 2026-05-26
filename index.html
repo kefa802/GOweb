@@ -8,7 +8,12 @@
     <style>
         body { font-family: sans-serif; background: #f4f6f9; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; }
         h2 { font-size: 1.1rem; margin: 5px 0 15px 0; color: #333; }
-        #board { width: 100%; max-width: 400px; margin-bottom: 15px; touch-action: manipulation; }
+        
+        /* ★大改修：碁盤の上に透明なフィルムを重ねるためのコンテナ設定 */
+        #board-container { position: relative; margin-bottom: 15px; }
+        #board { touch-action: manipulation; }
+        /* クリックはすり抜けて下の碁盤に届くように pointer-events: none を指定 */
+        #number-layer { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10; }
         
         .controls { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); width: 100%; max-width: 380px; margin-bottom: 15px; box-sizing: border-box; }
         .control-group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
@@ -33,7 +38,10 @@
 
     <h2>9路盤 詰碁・検討アプリ</h2>
     
-    <div id="board"></div>
+    <div id="board-container">
+        <div id="board"></div>
+        <canvas id="number-layer"></canvas>
+    </div>
 
     <div class="controls">
         <div class="control-group">
@@ -74,41 +82,41 @@
         };
 
         window.onload = function() {
+            // スマホ向けに横幅を計算
             var boardWidth = window.innerWidth < 420 ? window.innerWidth - 20 : 400;
+            
             if (typeof WGo === "undefined") {
                 document.getElementById("board").innerHTML = "<p style='color:red;'>WGo.jsの読み込みに失敗しました。</p>";
                 return;
             }
 
-            var board = new WGo.Board(document.getElementById("board"), { width: boardWidth, size: 9 });
-            
-            // ★大修正：WGo.jsの描画辞書に「数字（moveNumber）」を公式登録する
-            WGo.Board.draw.moveNumber = {
-                layer: "stones", // 確実に存在する石のレイヤーを指定
-                draw: function(args, board) {
-                    var ctx = args.ctx;
-                    if (!ctx) return;
-                    
-                    var xr = board.getX(args.x);
-                    var yr = board.getY(args.y);
-                    
-                    ctx.fillStyle = args.textColor; 
-                    ctx.textBaseline = "middle";
-                    ctx.textAlign = "center";
-                    ctx.font = "bold " + Math.floor(board.stoneRadius * 1.1) + "px sans-serif";
-                    ctx.fillText(args.text, xr, yr);
-                }
-            };
+            // コンテナのサイズを碁盤にピッタリ合わせる
+            var boardContainer = document.getElementById("board-container");
+            boardContainer.style.width = boardWidth + "px";
+            boardContainer.style.height = boardWidth + "px";
 
+            // ★数字描画用の透明フィルム（Canvas）をセットアップ
+            var numCanvas = document.getElementById("number-layer");
+            var dpr = window.devicePixelRatio || 1; // スマホでも文字がぼやけないようにする処理
+            numCanvas.width = boardWidth * dpr;
+            numCanvas.height = boardWidth * dpr;
+            numCanvas.style.width = boardWidth + "px";
+            numCanvas.style.height = boardWidth + "px";
+            var nCtx = numCanvas.getContext("2d");
+            nCtx.scale(dpr, dpr); // スケールを合わせる
+
+            // WGo.jsの初期化
+            var board = new WGo.Board(document.getElementById("board"), { width: boardWidth, size: 9 });
             var setupStones = Array(9).fill(0).map(() => Array(9).fill(0)); 
             var playMoves = []; 
             var game = new WGo.Game(9);
 
             function rebuildGame() {
+                // WGo.jsの描画を一旦リセット
                 board.removeAllObjects();
                 game = new WGo.Game(9);
 
-                // 1. 配置モードの石をセット
+                // 1. 配置石の登録
                 for (let x = 0; x < 9; x++) {
                     for (let y = 0; y < 9; y++) {
                         if (setupStones[x][y] !== 0) {
@@ -119,12 +127,12 @@
                 
                 game.turn = WGo.B;
 
-                // 2. 検討モードの手をセット
+                // 2. 検討の手順の登録
                 for (let m of playMoves) {
                     game.play(m.x, m.y, m.c);
                 }
 
-                // 3. 全ての石を描画
+                // 3. WGo.jsに石だけを描画させる
                 for (let x = 0; x < 9; x++) {
                     for (let y = 0; y < 9; y++) {
                         let stoneColor = game.getPosition().get(x, y);
@@ -134,17 +142,25 @@
                     }
                 }
 
-                // 4. その上に、登録した公式機能を使って数字を描画
+                // ★4. WGo.jsとは完全に切り離して、上の透明フィルムに数字を描き込む！
+                nCtx.clearRect(0, 0, boardWidth, boardWidth); // 前の数字を一旦消去
+                
                 let currentMoveNum = 1;
+                let fontSize = Math.floor(boardWidth / 22); // 碁盤のサイズに合わせた文字サイズ
+                nCtx.font = "bold " + fontSize + "px sans-serif";
+                nCtx.textBaseline = "middle";
+                nCtx.textAlign = "center";
+
                 for (let m of playMoves) {
+                    // 石が取られずに盤面にある場合
                     if (game.getPosition().get(m.x, m.y) === m.c) {
-                        board.addObject({
-                            x: m.x, 
-                            y: m.y, 
-                            type: "moveNumber", // ★上で登録したカスタム描画を呼び出す
-                            text: currentMoveNum.toString(), 
-                            textColor: m.c === WGo.B ? "white" : "black"
-                        });
+                        // 碁盤上のX, Y座標（ピクセル）を取得
+                        let xr = board.getX(m.x);
+                        let yr = board.getY(m.y);
+                        
+                        // 黒石には白文字、白石には黒文字で描画
+                        nCtx.fillStyle = (m.c === WGo.B) ? "white" : "black";
+                        nCtx.fillText(currentMoveNum.toString(), xr, yr);
                     }
                     currentMoveNum++;
                 }
