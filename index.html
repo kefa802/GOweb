@@ -2,46 +2,56 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>9路盤 検討アプリ</title>
-    <!-- WGo.jsの読み込み -->
-    <script src="https://cdn.jsdelivr.net/gh/waltheri/wgo.js/wgo.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/waltheri/wgo.js@master/wgo.js"></script>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; margin-top: 50px; }
-        #board { width: 400px; margin-bottom: 20px; }
-        .controls { display: flex; gap: 10px; }
-        button { padding: 8px 16px; cursor: pointer; }
+        body { 
+            font-family: sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            margin-top: 20px; 
+            background-color: #f9f9f9;
+        }
+        #board { 
+            /* スマホでもはみ出さないように最大幅を指定 */
+            width: 100%; 
+            max-width: 400px; 
+            margin-bottom: 20px; 
+        }
     </style>
 </head>
 <body>
 
-    <h2>9路盤 検討アプリ</h2>
+    <h2 style="font-size: 1.2rem;">9路盤 検討アプリ</h2>
     
-    <!-- 碁盤を描画するエリア -->
     <div id="board"></div>
 
     <script>
-        // 1. 9路盤のUI（見た目）を初期化
-        var board = new WGo.Board(document.getElementById("board"), {
-            width: 400,
-            size: 9 // ★ここを9にするだけで9路盤になります
-        });
+        // スマホの画面幅に合わせて碁盤のサイズを自動調整
+        var boardWidth = window.innerWidth < 420 ? window.innerWidth - 20 : 400;
 
-        // 2. 囲碁のルール（石の死活、コウなど）を管理するロジックを9路で初期化
-        var game = new WGo.Game(9);
+        // ライブラリが読み込めているかのチェック
+        if (typeof WGo === "undefined") {
+            document.getElementById("board").innerHTML = "<p style='color:red; font-weight:bold;'>WGo.jsの読み込みに失敗しました。</p>";
+        } else {
+            var board = new WGo.Board(document.getElementById("board"), {
+                width: boardWidth,
+                size: 9
+            });
 
-        // 3. 盤面をクリックしたときの処理
-        board.addEventListener("click", function(x, y) {
-            // クリックした座標に石が打てるか判定（打てない場合はエラーが返る）
-            var result = game.play(x, y);
+            var game = new WGo.Game(9);
 
-            if(typeof result == "number") {
-                // エラーコードが返ってきた場合（既に石がある、自殺手など）
-                console.log("そこには打てません。エラーコード:", result);
-            } else {
-                // 正常に打てた場合、盤面のUIを最新状態に更新（取られた石も自動で消えます）
-                board.update(game.getPosition());
-            }
-        });
+            board.addEventListener("click", function(x, y) {
+                var result = game.play(x, y);
+                if(typeof result == "number") {
+                    console.log("そこには打てません。エラーコード:", result);
+                } else {
+                    board.update(game.getPosition());
+                }
+            });
+        }
     </script>
 
 </body>
