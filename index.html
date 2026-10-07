@@ -1,269 +1,1329 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    
-    <title>9路盤 詰碁・検討アプリ</title>
-    <script src="https://cdn.jsdelivr.net/gh/waltheri/wgo.js@master/wgo/wgo.min.js"></script>
-    <style>
-        body { font-family: sans-serif; background: #f4f6f9; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; }
-        
-        /* タイトルとバージョン表示のレイアウト */
-        .header-container { width: 100%; max-width: 400px; display: flex; justify-content: space-between; align-items: center; margin: 5px 0 15px 0; }
-        h2 { font-size: 1.1rem; margin: 0; color: #333; }
-        .version-badge { background: #dc3545; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.9rem; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        
-        /* 碁盤と数字のコンテナ */
-        #board-container { position: relative; margin-bottom: 15px; width: 100%; max-width: 400px; }
-        #board { touch-action: manipulation; width: 100%; }
-        /* ★Canvasではなく、HTMLの文字として数字を浮かせるための透明な層 */
-        #number-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
-        .move-num { position: absolute; transform: translate(-50%, -50%); font-weight: bold; font-family: sans-serif; text-align: center; }
-        
-        .controls { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); width: 100%; max-width: 380px; margin-bottom: 15px; box-sizing: border-box; }
-        .control-group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
-        .control-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-        
-        .mode-title { font-weight: bold; font-size: 0.9rem; margin-bottom: 8px; display: block; color: #555; }
-        .radio-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 5px; }
-        .radio-group label { background: #e9ecef; padding: 12px; border-radius: 4px; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; gap: 4px; }
-        .radio-group input[type="radio"]:checked + span { font-weight: bold; color: #0056b3; }
-        .hint { font-size: 0.8rem; color: #666; text-align: center; margin-bottom: 10px; line-height: 1.4; }
-        
-        .btn-group { display: flex; gap: 10px; }
-        button { flex: 1; padding: 10px; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer; font-size: 0.9rem; font-weight: bold; }
-        button:active { background: #0056b3; }
-        button.btn-reset { background: #6c757d; }
-        button.btn-reset:active { background: #5a6268; }
-        
-        textarea { width: 100%; height: 60px; box-sizing: border-box; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 4px; padding: 8px; font-size: 0.8rem; resize: none; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>9路盤 囲碁AI道場 - Gemini 指導対局</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Marked for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            wood: {
+              100: '#f5deb3',
+              200: '#eec590',
+              300: '#deb887',
+              400: '#d2a679',
+              500: '#c18f59',
+              600: '#a2703f',
+              700: '#795028',
+              800: '#523417',
+              900: '#341f0b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Shippori+Mincho:wght@700&display=swap');
+
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background: radial-gradient(circle at 50% 20%, #1e293b 0%, #0f172a 100%);
+      color: #f1f5f9;
+      min-height: 100vh;
+      margin: 0;
+      user-select: none;
+    }
+
+    .font-serif-title {
+      font-family: 'Shippori Mincho', serif;
+    }
+
+    /* Wooden board texture & glow */
+    .goban-surface {
+      background: radial-gradient(circle, #e9bd82 0%, #caa065 70%, #b88d52 100%);
+      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(255, 255, 255, 0.4), inset 0 -3px 6px rgba(0, 0, 0, 0.3);
+      border: 4px solid #6b4c24;
+      border-radius: 12px;
+    }
+
+    /* Realistic 3D Go Stones with shadows */
+    .stone-black {
+      background: radial-gradient(circle at 35% 30%, #52525b 0%, #27272a 30%, #09090b 80%, #000 100%);
+      box-shadow: 2px 4px 6px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+    }
+
+    .stone-white {
+      background: radial-gradient(circle at 35% 30%, #ffffff 0%, #f4f4f5 40%, #d4d4d8 80%, #a1a1aa 100%);
+      box-shadow: 2px 4px 6px rgba(0, 0, 0, 0.5), inset 0 -1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Coach chat scrollbar */
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(30, 41, 59, 0.5);
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
+
+    /* Subtle pulse animation for coaching button */
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.6); }
+      70% { box-shadow: 0 0 0 10px rgba(234, 179, 8, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
+    }
+    .glow-coach-btn {
+      animation: pulse-ring 2.5s infinite;
+    }
+  </style>
 </head>
-<body>
+<body class="flex flex-col h-screen overflow-hidden">
 
-    <div class="header-container">
-        <h2>9路盤 詰碁・検討アプリ</h2>
-        <div class="version-badge">v2.0</div>
+  <header class="h-14 bg-slate-900/90 backdrop-blur border-b border-slate-800 flex items-center justify-between px-4 sm:px-6 z-20 shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center border border-amber-500/40 text-amber-400">
+        <i data-lucide="circle-dot" class="w-5 h-5"></i>
+      </div>
+      <h1 class="font-serif-title text-lg sm:text-xl font-bold tracking-wider text-amber-100 flex items-center gap-2">
+        9路盤 囲碁AI道場
+        <span class="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-sans font-normal border border-amber-500/30">囲碁クエスト仕様 (中国ルール・コミ7目)</span>
+      </h1>
     </div>
+
+    <!-- Quick action header buttons -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <button id="btn-open-settings" title="API設定" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+        <i data-lucide="key" class="w-4 h-4 text-amber-400"></i>
+        <span class="hidden sm:inline">API設定</span>
+      </button>
+      <button id="btn-sound-toggle" title="効果音切替" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+        <i id="sound-icon" data-lucide="volume-2" class="w-4 h-4"></i>
+      </button>
+      <button id="btn-new-game-modal" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-lg transition">
+        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+        <span>対局設定</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="flex-1 flex flex-col lg:flex-row overflow-hidden p-2 sm:p-4 gap-4 max-w-7xl mx-auto w-full">
     
-    <div id="board-container">
-        <div id="board"></div>
-        <div id="number-container"></div>
+    <!-- Left / Center: Goban Section -->
+    <section class="flex-[1.2] flex flex-col items-center justify-center min-h-0 bg-slate-900/40 rounded-2xl border border-slate-800/80 p-3 sm:p-5 relative">
+      
+      <!-- Top Match Info Status Banner -->
+      <div class="w-full max-w-md sm:max-w-lg mb-3 flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700/60 shadow text-xs sm:text-sm">
+        <!-- Player Black Info -->
+        <div id="badge-black" class="flex items-center gap-2 px-2.5 py-1 rounded-lg transition-all border border-transparent">
+          <span class="w-4 h-4 rounded-full stone-black inline-block"></span>
+          <div>
+            <span class="font-bold text-slate-100">黒番</span>
+            <span id="label-player-black" class="text-[11px] text-slate-400 block sm:inline sm:ml-1">(あなた)</span>
+          </div>
+          <span id="black-score-preview" class="ml-1 px-1.5 py-0.5 rounded bg-slate-900 text-amber-300 font-mono font-bold">盤上石: 0</span>
+        </div>
+
+        <!-- Center Move Count & Current Turn -->
+        <div class="text-center px-2">
+          <div id="turn-indicator" class="font-bold text-amber-400 text-xs sm:text-sm flex items-center gap-1.5 justify-center">
+            <span class="relative flex h-2.5 w-2.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+            </span>
+            <span id="turn-text">黒の手番</span>
+          </div>
+          <span id="move-count-text" class="text-[11px] text-slate-400 font-mono">0手目 (コミ7.0目)</span>
+        </div>
+
+        <!-- Player White Info -->
+        <div id="badge-white" class="flex items-center gap-2 px-2.5 py-1 rounded-lg transition-all border border-transparent">
+          <span class="w-4 h-4 rounded-full stone-white inline-block"></span>
+          <div>
+            <span class="font-bold text-slate-100">白番</span>
+            <span id="label-player-white" class="text-[11px] text-slate-400 block sm:inline sm:ml-1">(CPU)</span>
+          </div>
+          <span id="white-score-preview" class="ml-1 px-1.5 py-0.5 rounded bg-slate-900 text-amber-300 font-mono font-bold">+7.0目</span>
+        </div>
+      </div>
+
+      <div class="relative w-full max-w-[min(80vh,540px)] aspect-square flex items-center justify-center">
+        <!-- Wooden Goban with Canvas -->
+        <div id="board-container" class="w-full h-full p-3 sm:p-5 goban-surface flex items-center justify-center relative cursor-pointer select-none">
+          <canvas id="goban-canvas" class="w-full h-full block rounded"></canvas>
+          <!-- Hover ghost stone element -->
+          <div id="ghost-stone" class="absolute pointer-events-none rounded-full opacity-40 hidden transition-transform duration-75"></div>
+        </div>
+      </div>
+
+      <!-- Bottom In-Game Controls -->
+      <div class="w-full max-w-md sm:max-w-lg mt-3 flex items-center justify-between gap-2">
+        <button id="btn-pass" class="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 transition">
+          <i data-lucide="step-forward" class="w-4 h-4 text-slate-400"></i>
+          <span>パス (Pass)</span>
+        </button>
+        <button id="btn-undo" class="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 transition">
+          <i data-lucide="undo-2" class="w-4 h-4 text-slate-400"></i>
+          <span>待った (Undo)</span>
+        </button>
+        <button id="btn-resign" class="py-2 px-3 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-300 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 transition">
+          <i data-lucide="flag" class="w-4 h-4"></i>
+          <span>投了</span>
+        </button>
+      </div>
+    </section>
+
+    <aside class="flex-1 flex flex-col min-h-0 bg-slate-900/80 rounded-2xl border border-slate-800 flex-shrink-0 shadow-xl overflow-hidden">
+      <!-- Coach Panel Header -->
+      <div class="px-4 py-3 bg-slate-800/90 border-b border-slate-700/80 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+            <i data-lucide="graduation-cap" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-amber-100 flex items-center gap-2">
+              Gemini 棋道指導員
+            </h2>
+            <p class="text-[11px] text-slate-400">着手への評価・アドバイス・より良い一手</p>
+          </div>
+        </div>
+
+        <button id="btn-clear-coach" title="解説履歴をクリア" class="p-1.5 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-700 transition">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Coach Action Button: Primary Prominent Trigger -->
+      <div class="p-3 bg-slate-950/60 border-b border-slate-800">
+        <button id="btn-ask-coach" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition-all glow-coach-btn active:scale-[0.99]">
+          <i data-lucide="sparkles" class="w-5 h-5 fill-slate-950"></i>
+          <span>いまの手を指導してもらう</span>
+        </button>
+        <p class="text-[11px] text-center text-slate-400 mt-1.5">
+          あなたが打った直後の手（または現在の局面）の良し悪しをプロ目線で解説します
+        </p>
+      </div>
+
+      <!-- Coach Commentary Container -->
+      <div id="coach-messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scroll text-sm">
+        <!-- Default Welcome Guide Message -->
+        <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3.5 space-y-2 text-slate-300">
+          <div class="flex items-center gap-2 text-amber-400 font-bold text-xs">
+            <i data-lucide="info" class="w-4 h-4"></i>
+            <span>道場へようこそ！</span>
+          </div>
+          <p class="text-xs leading-relaxed">
+            盤面をクリックして着手してください。相手のコンピュータは自動で打ち返してきます。<br>
+            「この手で良かったのかな？」「相手の反撃が怖いな」と思ったら、いつでも上の<strong class="text-amber-300">「いまの手を指導してもらう」</strong>を押してください。
+          </p>
+          <div class="text-[11px] bg-slate-900/70 p-2 rounded border border-slate-800 text-slate-400">
+            ⚡ <strong>囲碁クエスト準拠</strong>：中国ルール（子空皆地方式：盤上の生きた石＋囲った地の合計）で判定。コミは白番に <strong>7.0目</strong> 加算されます。
+          </div>
+        </div>
+      </div>
+
+      <!-- Move History Mini Breadcrumbs -->
+      <div class="p-2.5 bg-slate-950/80 border-t border-slate-800/80 text-xs flex items-center justify-between text-slate-400">
+        <span class="truncate" id="last-move-desc">直前の手: まだ打たれていません</span>
+        <button id="btn-explain-situation" class="text-amber-400 hover:text-amber-300 hover:underline shrink-0 text-xs ml-2">
+          現局面の形勢判断 →
+        </button>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Dialog: New Game / Settings -->
+  <div id="modal-new-game" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
+        <h3 class="font-serif-title text-lg font-bold text-amber-200 flex items-center gap-2">
+          <i data-lucide="swords" class="w-5 h-5 text-amber-400"></i>
+          新しい対局を始める
+        </h3>
+        <button class="modal-close text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-sm">
+        <div>
+          <label class="block text-slate-300 font-bold mb-2">手番を選択（黒番または白番）</label>
+          <div class="grid grid-cols-2 gap-3">
+            <button id="select-color-black" class="py-3 px-4 rounded-xl border-2 border-amber-500 bg-slate-800 text-white font-bold flex items-center justify-center gap-2 transition hover:bg-slate-700">
+              <span class="w-4 h-4 rounded-full stone-black"></span>
+              <span>黒番 (先手)</span>
+            </button>
+            <button id="select-color-white" class="py-3 px-4 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 font-bold flex items-center justify-center gap-2 transition hover:bg-slate-700">
+              <span class="w-4 h-4 rounded-full stone-white"></span>
+              <span>白番 (後手・コミ7.0目)</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50 space-y-2 text-xs text-slate-300">
+          <div class="font-bold text-amber-300">囲碁クエスト9路盤ルール</div>
+          <ul class="list-disc list-inside space-y-1 text-slate-400">
+            <li><strong>中国ルール（計点制・子空皆地）</strong>：盤上に残った自分の石の数 ＋ 囲った空点の合計が総得点となります。ダメ詰めも1点として機能します。</li>
+            <li><strong>コミ 7.0目</strong>：白番の最終スコアに7.0目が加算されます（同点の場合は持碁）。</li>
+            <li><strong>自動対局＆指導</strong>：コンピュータとの対局中、いつでも「指導を受ける」で囲碁クエストの実戦に即した辛口アドバイスを受けられます。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end gap-3">
+        <button class="modal-close px-4 py-2 rounded-xl text-slate-300 hover:bg-slate-800 transition">
+          キャンセル
+        </button>
+        <button id="btn-start-game-confirm" class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition shadow-lg">
+          対局開始
+        </button>
+      </div>
     </div>
+  </div>
 
-    <div class="controls">
-        <div class="control-group">
-            <span class="mode-title">1. モード選択</span>
-            
-            <div class="radio-group">
-                <label><input type="radio" name="mode" value="setup" checked><span>盤面を自由に配置する</span></label>
-            </div>
-            <div class="hint">
-                👆 空の場所をタップ：黒<br>
-                ✌️ ダブルタップ：白<br>
-                ❌ すでに石がある場所をタップ：消去
-            </div>
+  <!-- Dialog: API Key Settings -->
+  <div id="modal-api-settings" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
+        <h3 class="font-serif-title text-lg font-bold text-amber-200 flex items-center gap-2">
+          <i data-lucide="key" class="w-5 h-5 text-amber-400"></i>
+          Gemini API 設定
+        </h3>
+        <button class="modal-close text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
 
-            <div class="radio-group" style="margin-top: 10px;">
-                <label style="background: #d4edda;">
-                    <input type="radio" name="mode" value="play" id="mode-play">
-                    <span style="color: #155724; font-size: 1rem;">▶ 検討を開始する（数字あり）</span>
-                </label>
-            </div>
+      <div class="space-y-3 text-sm">
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Google AI StudioのAPIキーをお持ちの場合は入力してください。設定すると優先して使用されます。空欄のままでもプラットフォーム提供のキーが利用されます。
+        </p>
+
+        <div>
+          <label class="block text-slate-300 font-bold mb-1 text-xs">Gemini API Key</label>
+          <input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500 font-mono">
         </div>
 
-        <div class="control-group btn-group">
-            <button id="btn-undo">待った（1手戻る）</button>
-            <button id="btn-reset" class="btn-reset">検討をリセット</button>
+        <div class="text-[11px] text-slate-400">
+          ※ キーはブラウザ（メモリ/セッション）のみに保持され、外部サーバーへ送信されることはありません。
         </div>
+      </div>
 
-        <div class="control-group">
-            <span class="mode-title">詰碁SGF読み込み</span>
-            <textarea id="sgf-input" placeholder="他のサイトのSGF（テキスト）をここにペースト"></textarea>
-            <button id="btn-load-sgf" style="background: #28a745;">盤面に反映する</button>
-        </div>
+      <div class="mt-6 flex justify-end gap-3">
+        <button id="btn-save-key" class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition">
+          保存する
+        </button>
+      </div>
     </div>
+  </div>
 
-    <script>
-        window.onerror = function(msg, url, line) {
-            alert("エラーが発生しました: " + msg + "\n(Line: " + line + ")");
+  <!-- Dialog: Game Over / Resign Alert -->
+  <div id="modal-game-over" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center">
+      <div class="w-14 h-14 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-3 border border-amber-500/30">
+        <i data-lucide="award" class="w-8 h-8"></i>
+      </div>
+      <h3 id="game-over-title" class="font-serif-title text-xl font-bold text-amber-100 mb-1">終局</h3>
+      <p id="game-over-reason" class="text-xs text-slate-400 mb-4">連続パスまたは投了により終局しました。</p>
+
+      <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs mb-5 text-slate-300 space-y-1">
+        <div id="game-over-score" class="font-bold text-amber-300">形勢判定をGeminiに依頼できます</div>
+      </div>
+
+      <div class="flex gap-2 justify-center">
+        <button id="btn-game-over-coach" class="flex-1 py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition">
+          終局の総括を聞く
+        </button>
+        <button id="btn-game-over-new" class="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition border border-slate-700">
+          もう一局打つ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Web Audio API synthesized stone click sound (no external assets)
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playStoneSound(isWhite = false) {
+      if (!soundEnabled) return;
+      initAudio();
+      if (!audioCtx) return;
+
+      const now = audioCtx.currentTime;
+      // High 'clack' snap with quick decay
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const filter = audioCtx.createBiquadFilter();
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(isWhite ? 1800 : 1400, now);
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(isWhite ? 420 : 360, now);
+      osc.frequency.exponentialRampToValueAtTime(120, now + 0.06);
+
+      gain.gain.setValueAtTime(0.7, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.08);
+    }
+  </script>
+
+  <script>
+    const BOARD_SIZE = 9;
+    const EMPTY = 0;
+    const BLACK = 1;
+    const WHITE = 2;
+    const KOMI = 7.0; // 囲碁クエスト 9路盤規格
+
+    // Coordinate letter labels: A B C D E F G H J (skipping I as standard Go tradition)
+    const COL_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J'];
+
+    class GoBoardState {
+      constructor() {
+        this.size = BOARD_SIZE;
+        this.grid = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(EMPTY));
+        this.captures = { [BLACK]: 0, [WHITE]: 0 };
+        this.ko = null; // Coordinates {x, y} of prohibited ko intersection
+        this.consecutivePasses = 0;
+        this.turn = BLACK;
+      }
+
+      clone() {
+        const copy = new GoBoardState();
+        for (let y = 0; y < BOARD_SIZE; y++) {
+          for (let x = 0; x < BOARD_SIZE; x++) {
+            copy.grid[y][x] = this.grid[y][x];
+          }
+        }
+        copy.captures = { ...this.captures };
+        copy.ko = this.ko ? { ...this.ko } : null;
+        copy.consecutivePasses = this.consecutivePasses;
+        copy.turn = this.turn;
+        return copy;
+      }
+
+      inBounds(x, y) {
+        return x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE;
+      }
+
+      getAdjacent(x, y) {
+        const neighbors = [];
+        const deltas = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        for (const [dx, dy] of deltas) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (this.inBounds(nx, ny)) {
+            neighbors.push({ x: nx, y: ny });
+          }
+        }
+        return neighbors;
+      }
+
+      // Count living stones currently on the board
+      countLivingStones() {
+        let black = 0;
+        let white = 0;
+        for (let y = 0; y < BOARD_SIZE; y++) {
+          for (let x = 0; x < BOARD_SIZE; x++) {
+            if (this.grid[y][x] === BLACK) black++;
+            else if (this.grid[y][x] === WHITE) white++;
+          }
+        }
+        return { black, white };
+      }
+
+      // Chinese Rules Area Scoring: Stones on board + surrounded empty territory
+      calculateAreaScore() {
+        const stones = this.countLivingStones();
+        const visited = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(false));
+        let blackTerritory = 0;
+        let whiteTerritory = 0;
+        let dameOrShared = 0;
+
+        for (let y = 0; y < BOARD_SIZE; y++) {
+          for (let x = 0; x < BOARD_SIZE; x++) {
+            if (this.grid[y][x] === EMPTY && !visited[y][x]) {
+              // Flood-fill empty zone
+              const queue = [{ x, y }];
+              visited[y][x] = true;
+              const area = [];
+              let touchesBlack = false;
+              let touchesWhite = false;
+
+              while (queue.length > 0) {
+                const cur = queue.shift();
+                area.push(cur);
+
+                for (const nb of this.getAdjacent(cur.x, cur.y)) {
+                  const val = this.grid[nb.y][nb.x];
+                  if (val === BLACK) touchesBlack = true;
+                  else if (val === WHITE) touchesWhite = true;
+                  else if (val === EMPTY && !visited[nb.y][nb.x]) {
+                    visited[nb.y][nb.x] = true;
+                    queue.push(nb);
+                  }
+                }
+              }
+
+              if (touchesBlack && !touchesWhite) {
+                blackTerritory += area.length;
+              } else if (touchesWhite && !touchesBlack) {
+                whiteTerritory += area.length;
+              } else {
+                dameOrShared += area.length;
+              }
+            }
+          }
+        }
+
+        const blackTotal = stones.black + blackTerritory;
+        const whiteTotal = stones.white + whiteTerritory + KOMI;
+        const diff = blackTotal - whiteTotal;
+
+        return {
+          blackStones: stones.black,
+          whiteStones: stones.white,
+          blackTerritory,
+          whiteTerritory,
+          dameOrShared,
+          komi: KOMI,
+          blackTotal,
+          whiteTotal,
+          diff
+        };
+      }
+
+      render(board = this.board, lastMove = this.lastMove) {
+        this.board = board;
+        this.lastMove = lastMove;
+        if (!this.board) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const w = this.canvas.width / dpr;
+        const h = this.canvas.height / dpr;
+        const ctx = this.ctx;
+
+        ctx.clearRect(0, 0, w, h);
+
+        const padding = w * 0.08;
+        const cellSize = (w - padding * 2) / (BOARD_SIZE - 1);
+
+        // 1. Draw Grid lines
+        ctx.strokeStyle = '#4a3215';
+        ctx.lineWidth = Math.max(1, w * 0.0035);
+
+        for (let i = 0; i < BOARD_SIZE; i++) {
+          const pos = padding + i * cellSize;
+
+          // Vertical line
+          ctx.beginPath();
+          ctx.moveTo(pos, padding);
+          ctx.lineTo(pos, h - padding);
+          ctx.stroke();
+
+          // Horizontal line
+          ctx.beginPath();
+          ctx.moveTo(padding, pos);
+          ctx.lineTo(w - padding, pos);
+          ctx.stroke();
+        }
+
+        // 2. Star points (Hoshi) for 9x9 Go: (2,2), (6,2), (4,4), (2,6), (6,6)
+        const starPoints = [
+          { x: 2, y: 2 }, { x: 6, y: 2 },
+          { x: 4, y: 4 }, // Tengen
+          { x: 2, y: 6 }, { x: 6, y: 6 }
+        ];
+
+        ctx.fillStyle = '#3e2710';
+        for (const pt of starPoints) {
+          const { px, py } = this.coordToPixel(pt.x, pt.y);
+          ctx.beginPath();
+          ctx.arc(px, py, cellSize * 0.09, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // 3. Coordinate Labels on perimeter
+        ctx.font = `600 ${Math.max(9, cellSize * 0.28)}px 'Noto Sans JP', sans-serif`;
+        ctx.fillStyle = '#6b4d24';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        for (let i = 0; i < BOARD_SIZE; i++) {
+          const { px, py } = this.coordToPixel(i, i);
+          // Column letters top & bottom
+          const letter = COL_LABELS[i];
+          ctx.fillText(letter, px, padding * 0.45);
+          ctx.fillText(letter, px, h - padding * 0.45);
+
+          // Row numbers left & right (Go 9-1 from top to bottom)
+          const rowNum = 9 - i;
+          ctx.fillText(rowNum.toString(), padding * 0.45, py);
+          ctx.fillText(rowNum.toString(), w - padding * 0.45, py);
+        }
+
+        // 4. Draw Placed Stones with realistic shading
+        for (let y = 0; y < BOARD_SIZE; y++) {
+          for (let x = 0; x < BOARD_SIZE; x++) {
+            const stone = this.board.grid[y][x];
+            if (stone !== EMPTY) {
+              this.drawStone(x, y, stone);
+            }
+          }
+        }
+
+        // 5. Draw Last Move Marker
+        if (this.lastMove && this.lastMove.x !== null && this.lastMove.y !== null) {
+          const { px, py, stoneRadius } = this.coordToPixel(this.lastMove.x, this.lastMove.y);
+          const stoneColor = this.board.grid[this.lastMove.y][this.lastMove.x];
+          ctx.beginPath();
+          ctx.arc(px, py, stoneRadius * 0.35, 0, Math.PI * 2);
+          ctx.strokeStyle = stoneColor === BLACK ? '#facc15' : '#dc2626';
+          ctx.lineWidth = Math.max(2, stoneRadius * 0.14);
+          ctx.stroke();
+        }
+
+        // 6. Draw Hover Ghost Stone
+        if (this.hoverCoord && this.board.turn === this.playerColor) {
+          const { x, y } = this.hoverCoord;
+          if (this.board.grid[y][x] === EMPTY && this.board.isLegalMove(x, y, this.playerColor)) {
+            const { px, py, stoneRadius } = this.coordToPixel(x, y);
+            ctx.save();
+            ctx.globalAlpha = 0.45;
+            this.drawStoneAtPixel(px, py, stoneRadius, this.playerColor);
+            ctx.restore();
+          }
+        }
+      }
+
+      drawStone(x, y, color) {
+        const { px, py, stoneRadius } = this.coordToPixel(x, y);
+        this.drawStoneAtPixel(px, py, stoneRadius, color);
+      }
+
+      drawStoneAtPixel(px, py, r, color) {
+        const ctx = this.ctx;
+
+        // Shadow beneath stone
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(px + r * 0.12, py + r * 0.16, r * 0.98, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.filter = 'blur(3px)';
+        ctx.fill();
+        ctx.restore();
+
+        // Stone Body Gradient
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        const grad = ctx.createRadialGradient(
+          px - r * 0.28,
+          py - r * 0.32,
+          r * 0.08,
+          px,
+          py,
+          r
+        );
+
+        if (color === BLACK) {
+          grad.addColorStop(0, '#52525b');
+          grad.addColorStop(0.3, '#27272a');
+          grad.addColorStop(0.85, '#09090b');
+          grad.addColorStop(1, '#000000');
+        } else {
+          grad.addColorStop(0, '#ffffff');
+          grad.addColorStop(0.4, '#f8fafc');
+          grad.addColorStop(0.85, '#cbd5e1');
+          grad.addColorStop(1, '#94a3b8');
+        }
+
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Edge contour
+        ctx.strokeStyle = color === BLACK ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+  </script>
+
+  <script>
+    // Handles communication with the Gemini 3 Flash model for Go Coaching
+    class GeminiGoCoach {
+      static getApiKey() {
+        const userKey = localStorage.getItem('user_gemini_api_key');
+        if (userKey && userKey.trim().length > 0) {
+          return userKey.trim();
+        }
+        return ""; // Canvas runtime environment provides API key automatically when empty
+      }
+
+      // Convert move history into readable Go notation: e.g. "1. 黒 E5, 2. 白 E3"
+      static formatNotation(history) {
+        if (!history || history.length === 0) return 'なし';
+        return history.map((m, idx) => {
+          const colorName = m.color === BLACK ? '黒' : '白';
+          if (m.x === null || m.y === null) {
+            return `${idx + 1}. ${colorName} パス`;
+          }
+          const col = COL_LABELS[m.x];
+          const row = 9 - m.y;
+          return `${idx + 1}. ${colorName} ${col}${row}`;
+        }).join(', ');
+      }
+
+      // Format simple ASCII 9x9 board representation for precise AI spatial reasoning
+      static getAsciiBoard(board) {
+        let ascii = '  A B C D E F G H J\n';
+        for (let y = 0; y < BOARD_SIZE; y++) {
+          const rowNum = 9 - y;
+          ascii += `${rowNum} `;
+          for (let x = 0; x < BOARD_SIZE; x++) {
+            const val = board.grid[y][x];
+            if (val === BLACK) ascii += 'X ';
+            else if (val === WHITE) ascii += 'O ';
+            else ascii += '+ ';
+          }
+          ascii += `\n`;
+        }
+        return ascii;
+      }
+
+      static async requestAnalysis(options) {
+        const {
+          board,
+          history,
+          userColor,
+          targetMove, // { x, y, color, moveIndex }
+          isSituationCheck = false,
+          isGameOver = false
+        } = options;
+
+        const apiKey = this.getApiKey();
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+        const notation = this.formatNotation(history);
+        const ascii = this.getAsciiBoard(board);
+        const areaScore = board.calculateAreaScore();
+        const userColorStr = userColor === BLACK ? '黒' : '白';
+        const oppColorStr = userColor === BLACK ? '白' : '黒';
+
+        let targetMoveDesc = '（着手なし）';
+        if (targetMove && targetMove.x !== null) {
+          targetMoveDesc = `${targetMove.color === BLACK ? '黒' : '白'} ${COL_LABELS[targetMove.x]}${9 - targetMove.y}（${targetMove.moveIndex}手目）`;
+        } else if (targetMove && targetMove.x === null) {
+          targetMoveDesc = `${targetMove.color === BLACK ? '黒' : '白'} パス`;
+        }
+
+        const systemPrompt = `あなたは「囲碁クエスト（9路盤）」の上位高段者・プロ棋道指導員です。
+生徒（${userColorStr}番）の対局手筋を厳しくも温かく指導します。
+
+【対局ルール（囲碁クエスト準拠）】
+- 9路盤・中国ルール（子空皆地：盤上の生きた石＋囲った地の総得点方式）
+- コミ: 7.0目（白に加算）
+- 列記号: A〜J (Iなし), 行: 1〜9（E5が天元、C3/G3/C7/G7が星）
+
+【指導方針】
+- 中国ルール特有の考え方（ダメ詰めも得点になること、パスを急がないこと、石の生き死にの境界線）を念頭に置いてアドバイス。
+- 「ここがダメ（薄み・反撃リスク）」「こっちのほうがいい（具体的な座標と理由）」をはっきり明快に指導してください。
+- スマホでも読みやすいよう見出しや箇条書きで構成してください。`;
+
+        let userPrompt = '';
+
+        if (isGameOver) {
+          userPrompt = `囲碁クエスト9路盤の対局が終局しました。中国ルール（コミ7.0目）による総括とアドバイスをお願いします。
+【棋譜】${notation}
+【現時点の中国ルール集計】黒: 盤上${areaScore.blackStones}石+地${areaScore.blackTerritory}点=${areaScore.blackTotal}点 vs 白: 盤上${areaScore.whiteStones}石+地${areaScore.whiteTerritory}点+コミ${KOMI}目=${areaScore.whiteTotal}点 (差: ${areaScore.diff > 0 ? '黒'+areaScore.diff+'点勝ち' : '白'+Math.abs(areaScore.diff)+'点勝ち'})
+【最終盤面（X:黒, O:白, +:空点）】
+${ascii}
+
+生徒（${userColorStr}番）に向けて、勝敗を分けたポイントや9路クエスト特有の反省点を解説してください。`;
+        } else if (isSituationCheck) {
+          userPrompt = `囲碁クエスト9路盤（中国ルール・コミ7.0目）の現局面を診断してください。
+【生徒の手番】${userColorStr}番
+【棋譜】${notation}
+【現在概算（中国ルール）】黒${areaScore.blackTotal}点 vs 白${areaScore.whiteTotal}点（コミ7目込）
+【現在盤面（X:黒, O:白, +:空点）】
+${ascii}
+
+以下の項目でズバリ回答してください：
+1. **形勢判断（コミ7目を踏まえて黒有利か白有利か）**
+2. **残された急所・大場（中国ルールのダメ詰めも含めて）**
+3. **次に打つべき推奨手（具体的な座標と狙い）**`;
+        } else {
+          // Direct move coaching
+          userPrompt = `生徒（${userColorStr}番）が打った直前の手【${targetMoveDesc}】について指導してください。
+※囲碁クエスト9路盤（中国ルール・コミ7.0目）の文脈で評価してください。
+
+【直近の流れ】${notation}
+【現在盤面（X:黒, O:白, +:空点）】
+${ascii}
+
+以下の3点を明確に教えてください：
+### 1. この手の意図と評価
+### 2. ここがダメな理由・注意すべき弱点（相手(${oppColorStr})からの鋭いツッコミなど）
+### 3. こっちのほうが良かった代替手（具体的な座標、例: E5, D4 などとその理由）`;
+        }
+
+        const systemPrompt = `あなたは優しくユーモアがあり、かつ非常に鋭いプロ囲碁指導員（棋道師範）です。
+対象は9路盤で練習している生徒（${userColorStr}番）です。
+
+【盤面規格】
+9路盤、コミ6.5目。
+列記号: A, B, C, D, E, F, G, H, J (Iは不使用)
+行番号: 1〜9（上が9、下が1。天元はE5、四隅の星はC3, G3, C7, G7）
+
+【解説スタイル】
+- 専門用語（ダメ、アタリ、ノビ、ハネ、ツケ、キリ、地、厚み、根拠）をわかりやすく平易に解説。
+- 根拠に基づいた具体的な座標（例:「D6」「C4のノビ」など）を提示。
+- マークダウン記法（見出し・太字・リストなど）を使って、スマートフォンでも読みやすく美しく整理してください。`;
+
+        let userPrompt = '';
+
+        if (isGameOver) {
+          userPrompt = `対局が終局しました。全体の棋譜と最終盤面を振り返り、生徒（${userColorStr}番）への総括アドバイスと温かい講評をお願いします。
+【棋譜】${notation}
+【アゲハマ】黒: ${board.captures[BLACK]}, 白: ${board.captures[WHITE]}
+【最終盤面（X:黒, O:白, +:空点）】
+${ascii}`;
+        } else if (isSituationCheck) {
+          userPrompt = `現在の9路盤の形勢を診断してください。
+【生徒の手番】${userColorStr}番
+【棋譜】${notation}
+【アゲハマ】黒: ${board.captures[BLACK]}, 白: ${board.captures[WHITE]}
+【現在盤面（X:黒, O:白, +:空点）】
+${ascii}
+
+以下の項目で簡潔に診断してください：
+1. **現在の形勢（優勢・互角・劣勢とその理由）**
+2. **盤上で今もっとも急がれる場所・急所**
+3. **次に打つべき推奨手（座標と理由）**`;
+        } else {
+          // Direct Move Coaching (直前の手に対する指導)
+          userPrompt = `生徒（${userColorStr}番）が直前に打った手【${targetMoveDesc}】について、指導と解説をお願いします。
+
+【対局の流れ】${notation}
+【現在盤面（X:黒, O:白, +:空点）】
+${ascii}
+
+以下の構成で、生徒が次の手から活かせるよう具体的に指導してください：
+### 1. この手の狙いと評価
+（良かった点や、打った意図の汲み取り）
+
+### 2. ここが注意・改善点（甘い理由やリスク）
+（ダメの詰まり、薄み、相手(${oppColorStr})から打たれる嫌な反撃など）
+
+### 3. より良かった代替手（「こっちの方がおすすめ」）
+（具体的な座標、例えば「E4」や「D6」を挙げ、なぜそちらの方が勝るのか解説）`;
+        }
+
+        const payload = {
+          contents: [{ parts: [{ text: userPrompt }] }],
+          systemInstruction: {
+            parts: [{ text: systemPrompt }]
+          }
         };
 
-        window.onload = function() {
-            var boardWidth = window.innerWidth < 420 ? window.innerWidth - 20 : 400;
-            
-            if (typeof WGo === "undefined") {
-                document.getElementById("board").innerHTML = "<p style='color:red;'>WGo.jsの読み込みに失敗しました。</p>";
-                return;
+        // Exponential backoff fetch
+        let attempts = 0;
+        const maxAttempts = 3;
+        while (attempts < maxAttempts) {
+          try {
+            const response = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+              throw new Error(`API response status: ${response.status}`);
             }
 
-            document.getElementById("board-container").style.width = boardWidth + "px";
-            document.getElementById("board-container").style.height = boardWidth + "px";
-
-            var board = new WGo.Board(document.getElementById("board"), { width: boardWidth, size: 9 });
-            var setupStones = Array(9).fill(0).map(() => Array(9).fill(0)); 
-            var playMoves = []; 
-            var game = new WGo.Game(9);
-
-            function rebuildGame() {
-                board.removeAllObjects();
-                game = new WGo.Game(9);
-
-                // 1. 配置石
-                for (let x = 0; x < 9; x++) {
-                    for (let y = 0; y < 9; y++) {
-                        if (setupStones[x][y] !== 0) {
-                            game.play(x, y, setupStones[x][y]);
-                        }
-                    }
-                }
-                
-                game.turn = WGo.B;
-
-                // 2. 検討手順
-                for (let m of playMoves) {
-                    game.play(m.x, m.y, m.c);
-                }
-
-                // 3. 石の描画
-                for (let x = 0; x < 9; x++) {
-                    for (let y = 0; y < 9; y++) {
-                        let stoneColor = game.getPosition().get(x, y);
-                        if (stoneColor !== 0) {
-                            board.addObject({ x: x, y: y, c: stoneColor });
-                        }
-                    }
-                }
-
-                // ★4. HTML要素として数字を絶対配置する（一番確実な方法）
-                let numContainer = document.getElementById("number-container");
-                numContainer.innerHTML = ""; // 前の数字をすべてクリア
-                
-                let currentMoveNum = 1;
-                // 石の半径から文字サイズを計算
-                let fontSize = Math.floor(board.stoneRadius * 1.3); 
-
-                for (let m of playMoves) {
-                    if (game.getPosition().get(m.x, m.y) === m.c) {
-                        // 碁盤上のピクセル座標を取得
-                        let xr = board.getX(m.x);
-                        let yr = board.getY(m.y);
-                        
-                        // 数字用のHTML要素（div）を作成
-                        let numEl = document.createElement("div");
-                        numEl.className = "move-num";
-                        numEl.style.left = xr + "px";
-                        numEl.style.top = yr + "px";
-                        numEl.style.fontSize = fontSize + "px";
-                        numEl.style.color = (m.c === WGo.B) ? "white" : "black";
-                        numEl.innerText = currentMoveNum;
-                        
-                        // コンテナに追加（画面に表示）
-                        numContainer.appendChild(numEl);
-                    }
-                    currentMoveNum++;
-                }
+            const data = await response.json();
+            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              return text;
             }
+            throw new Error('No text candidate returned');
+          } catch (err) {
+            attempts++;
+            if (attempts >= maxAttempts) throw err;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempts - 1)));
+          }
+        }
+      }
+    }
+  </script>
 
-            let lastTapTime = 0;
-            let lastTapCoords = { x: -1, y: -1 };
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // DOM Elements
+      const canvas = document.getElementById('goban-canvas');
+      const badgeBlack = document.getElementById('badge-black');
+      const badgeWhite = document.getElementById('badge-white');
+      const labelBlack = document.getElementById('label-player-black');
+      const labelWhite = document.getElementById('label-player-white');
+      const blackCapturesEl = document.getElementById('black-captures');
+      const whiteCapturesEl = document.getElementById('white-captures');
+      const turnTextEl = document.getElementById('turn-text');
+      const moveCountEl = document.getElementById('move-count-text');
+      const lastMoveDescEl = document.getElementById('last-move-desc');
+      const coachMessagesContainer = document.getElementById('coach-messages-container');
 
-            board.addEventListener("click", function(x, y) {
-                if (x < 0 || y < 0 || x >= 9 || y >= 9) return;
+      // Modals
+      const modalNewGame = document.getElementById('modal-new-game');
+      const modalApiSettings = document.getElementById('modal-api-settings');
+      const modalGameOver = document.getElementById('modal-game-over');
+      const inputApiKey = document.getElementById('input-api-key');
 
-                let mode = document.querySelector('input[name="mode"]:checked').value;
-                let now = Date.now();
-                
-                let isDoubleTap = (lastTapCoords.x === x && lastTapCoords.y === y && (now - lastTapTime) < 300);
-                
-                lastTapTime = now;
-                lastTapCoords = { x: x, y: y };
+      // Buttons
+      const btnAskCoach = document.getElementById('btn-ask-coach');
+      const btnExplainSit = document.getElementById('btn-explain-situation');
+      const btnClearCoach = document.getElementById('btn-clear-coach');
+      const btnPass = document.getElementById('btn-pass');
+      const btnUndo = document.getElementById('btn-undo');
+      const btnResign = document.getElementById('btn-resign');
+      const btnNewGameModal = document.getElementById('btn-new-game-modal');
+      const btnOpenSettings = document.getElementById('btn-open-settings');
+      const btnSaveKey = document.getElementById('btn-save-key');
+      const btnSoundToggle = document.getElementById('btn-sound-toggle');
+      const soundIcon = document.getElementById('sound-icon');
+      const btnStartGameConfirm = document.getElementById('btn-start-game-confirm');
+      const selectColorBlack = document.getElementById('select-color-black');
+      const selectColorWhite = document.getElementById('select-color-white');
+      const btnGameOverCoach = document.getElementById('btn-game-over-coach');
+      const btnGameOverNew = document.getElementById('btn-game-over-new');
 
-                if (mode === "setup") {
-                    if (playMoves.length > 0) {
-                        if(!confirm("盤面を再配置すると、現在の検討手順はリセットされます。よろしいですか？")) return;
-                        playMoves = [];
-                    }
-                    
-                    if (isDoubleTap) {
-                        setupStones[x][y] = WGo.W;
-                        lastTapTime = 0; 
-                    } else {
-                        if (setupStones[x][y] !== 0) {
-                            setupStones[x][y] = 0;
-                            lastTapTime = 0; 
-                        } else {
-                            setupStones[x][y] = WGo.B;
-                        }
-                    }
-                    rebuildGame();
-                    
-                } else if (mode === "play") {
-                    let tempGame = new WGo.Game(9);
-                    for (let cx = 0; cx < 9; cx++) {
-                        for (let cy = 0; cy < 9; cy++) {
-                            if (setupStones[cx][cy] !== 0) tempGame.play(cx, cy, setupStones[cx][cy]);
-                        }
-                    }
-                    tempGame.turn = WGo.B;
-                    for (let m of playMoves) tempGame.play(m.x, m.y, m.c);
+      // Game State
+      let board = new GoBoardState();
+      let moveHistory = []; // { x, y, color, captures, boardState }
+      let userColor = BLACK;
+      let isAiThinking = false;
+      let isCoachLoading = false;
+      let selectedNewGameColor = BLACK;
 
-                    let currentTurn = tempGame.turn;
-                    let result = tempGame.play(x, y, currentTurn);
-                    
-                    if (typeof result === "number") return; 
+      // Initialize Goban Renderer
+      const renderer = new GobanRenderer(canvas, (x, y) => {
+        handleUserClick(x, y);
+      });
+      renderer.playerColor = userColor;
 
-                    playMoves.push({ x: x, y: y, c: currentTurn });
-                    rebuildGame();
-                }
-            });
+      // Start initial game
+      startNewGame(BLACK);
 
-            document.getElementById("btn-undo").addEventListener("click", function() {
-                if (playMoves.length > 0) {
-                    playMoves.pop();
-                    rebuildGame();
-                }
-            });
+      // --- Functions ---
 
-            document.getElementById("btn-reset").addEventListener("click", function() {
-                playMoves = [];
-                rebuildGame();
-            });
+      function startNewGame(chosenColor) {
+        userColor = chosenColor;
+        renderer.playerColor = userColor;
+        board = new GoBoardState();
+        moveHistory = [];
+        isAiThinking = false;
 
-            document.getElementById("btn-load-sgf").addEventListener("click", function() {
-                let sgf = document.getElementById("sgf-input").value;
-                if(!sgf) return;
-                
-                setupStones = Array(9).fill(0).map(() => Array(9).fill(0));
-                playMoves = [];
+        labelBlack.textContent = userColor === BLACK ? '(あなた)' : '(CPU)';
+        labelWhite.textContent = userColor === WHITE ? '(あなた)' : '(CPU)';
 
-                let parseSGF = function(regex, color) {
-                    let match = sgf.match(regex);
-                    if(match) {
-                        let stones = match[1].match(/\[[a-i]{2}\]/g);
-                        if(stones) {
-                            stones.forEach(s => {
-                                let x = s.charCodeAt(1) - 97;
-                                let y = s.charCodeAt(2) - 97;
-                                if(x>=0 && x<9 && y>=0 && y<9) setupStones[x][y] = color;
-                            });
-                        }
-                    }
-                };
-                
-                parseSGF(/AB((?:\[[a-i]{2}\])+)/, WGo.B);
-                parseSGF(/AW((?:\[[a-i]{2}\])+)/, WGo.W);
-                
-                rebuildGame();
-                document.getElementById("mode-play").checked = true; 
-            });
+        updateStatusUI();
+        renderer.resizeCanvas();
 
-            rebuildGame();
+        addCoachMessage(
+          '指導員',
+          `新たな対局を開始しました。あなたは **${userColor === BLACK ? '黒番 (先手)' : '白番 (後手・コミ6.5目)'}** です。<br>盤上をクリックして着手してください。`,
+          'info'
+        );
+
+        // If computer plays Black, trigger first move
+        if (userColor === WHITE) {
+          triggerComputerMove();
+        }
+      }
+
+      function handleUserClick(x, y) {
+        if (isAiThinking || board.turn !== userColor) return;
+
+        if (!board.isLegalMove(x, y, userColor)) {
+          // Play subtle warning haptic or sound
+          return;
+        }
+
+        executeMove(x, y, userColor);
+      }
+
+      function executeMove(x, y, color) {
+        const preBoard = board.clone();
+        const res = board.playMove(x, y, color);
+
+        if (!res.success) return;
+
+        playStoneSound(color === WHITE);
+
+        const moveRecord = {
+          x,
+          y,
+          color,
+          moveIndex: moveHistory.length + 1,
+          captured: res.captured,
+          stateBefore: preBoard
         };
-    </script>
+        moveHistory.push(moveRecord);
+
+        renderer.render(board, { x, y });
+        updateStatusUI();
+
+        // Check for double pass (game end)
+        if (board.consecutivePasses >= 2) {
+          handleGameOver('両者連続パスにより終局しました。');
+          return;
+        }
+
+        // Trigger computer turn if applicable
+        if (board.turn !== userColor) {
+          triggerComputerMove();
+        }
+      }
+
+      function triggerComputerMove() {
+        isAiThinking = true;
+        updateStatusUI();
+
+        // Realistic brief thinking pause
+        setTimeout(() => {
+          if (board.turn === userColor) {
+            isAiThinking = false;
+            return;
+          }
+
+          const cpuColor = userColor === BLACK ? WHITE : BLACK;
+          const chosen = ComputerGoPlayer.chooseMove(board, cpuColor);
+
+          if (chosen === null) {
+            // Computer Passes
+            executeMove(null, null, cpuColor);
+          } else {
+            executeMove(chosen.x, chosen.y, cpuColor);
+          }
+
+          isAiThinking = false;
+          updateStatusUI();
+        }, 550);
+      }
+
+      function updateStatusUI() {
+        const stones = board.countLivingStones();
+        document.getElementById('black-score-preview').textContent = `盤上石: ${stones.black}`;
+        document.getElementById('white-score-preview').textContent = `盤上石: ${stones.white} (+7.0)`;
+        moveCountEl.textContent = `${moveHistory.length}手目 (コミ7.0目)`;
+
+        // Turn indicator
+        if (isAiThinking) {
+          turnTextEl.textContent = '相手が思考中...';
+          badgeBlack.classList.remove('bg-amber-500/20', 'border-amber-500/40');
+          badgeWhite.classList.remove('bg-amber-500/20', 'border-amber-500/40');
+          if (board.turn === BLACK) badgeBlack.classList.add('bg-amber-500/20', 'border-amber-500/40');
+          else badgeWhite.classList.add('bg-amber-500/20', 'border-amber-500/40');
+        } else {
+          turnTextEl.textContent = board.turn === BLACK ? '黒の手番' : '白の手番';
+          badgeBlack.classList.toggle('bg-amber-500/20', board.turn === BLACK);
+          badgeBlack.classList.toggle('border-amber-500/40', board.turn === BLACK);
+          badgeWhite.classList.toggle('bg-amber-500/20', board.turn === WHITE);
+          badgeWhite.classList.toggle('border-amber-500/40', board.turn === WHITE);
+        }
+
+        // Last move text
+        if (moveHistory.length > 0) {
+          const last = moveHistory[moveHistory.length - 1];
+          const colorName = last.color === BLACK ? '黒' : '白';
+          if (last.x === null) {
+            lastMoveDescEl.textContent = `直前の手: ${last.moveIndex}手目 ${colorName} パス`;
+          } else {
+            const coordStr = `${COL_LABELS[last.x]}${9 - last.y}`;
+            lastMoveDescEl.textContent = `直前の手: ${last.moveIndex}手目 ${colorName} ${coordStr}`;
+          }
+        } else {
+          lastMoveDescEl.textContent = '直前の手: まだ打たれていません';
+        }
+      }
+
+      function handleGameOver(reason) {
+        document.getElementById('game-over-reason').textContent = reason;
+        const score = board.calculateAreaScore();
+        let resultText = '';
+        if (score.diff > 0) {
+          resultText = `黒番の ${score.diff.toFixed(1)} 目勝ち（黒: ${score.blackTotal}点 vs 白: ${score.whiteTotal}点 / コミ7.0目）`;
+        } else if (score.diff < 0) {
+          resultText = `白番の ${Math.abs(score.diff).toFixed(1)} 目勝ち（白: ${score.whiteTotal}点 vs 黒: ${score.blackTotal}点 / コミ7.0目）`;
+        } else {
+          resultText = `持碁（引き分け: 黒${score.blackTotal}点 vs 白${score.whiteTotal}点）`;
+        }
+        document.getElementById('game-over-score').innerHTML = `
+          <div class="text-sm font-bold text-amber-300 mb-1">${resultText}</div>
+          <div class="text-[11px] text-slate-400">中国ルール（盤上石＋地）：黒石${score.blackStones} + 黒地${score.blackTerritory} / 白石${score.whiteStones} + 白地${score.whiteTerritory} + コミ7.0目</div>
+        `;
+        modalGameOver.classList.remove('hidden');
+      }
+
+      // --- Undo implementation ---
+      function handleUndo() {
+        if (moveHistory.length === 0 || isAiThinking) return;
+
+        // In a game against CPU, undo 2 moves (computer's move and user's move) to return to user's turn
+        let targetUndos = 1;
+        const lastMove = moveHistory[moveHistory.length - 1];
+        if (lastMove.color !== userColor && moveHistory.length >= 2) {
+          targetUndos = 2;
+        }
+
+        for (let i = 0; i < targetUndos; i++) {
+          moveHistory.pop();
+        }
+
+        // Restore board from history
+        if (moveHistory.length > 0) {
+          const target = moveHistory[moveHistory.length - 1];
+          board = target.stateBefore.clone();
+          board.playMove(target.x, target.y, target.color);
+          renderer.render(board, { x: target.x, y: target.y });
+        } else {
+          board = new GoBoardState();
+          renderer.render(board, null);
+          if (userColor === WHITE) {
+            triggerComputerMove();
+          }
+        }
+
+        updateStatusUI();
+      }
+
+      // --- Coach UI Messaging ---
+      function addCoachMessage(sender, text, type = 'normal') {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'rounded-xl p-3.5 space-y-2 border text-xs leading-relaxed transition-all';
+
+        if (type === 'loading') {
+          msgDiv.id = 'coach-loading-bubble';
+          msgDiv.className += ' bg-amber-950/20 border-amber-500/30 text-amber-200 animate-pulse flex items-center gap-2';
+          msgDiv.innerHTML = `
+            <div class="animate-spin text-amber-400">
+              <i data-lucide="loader-2" class="w-4 h-4"></i>
+            </div>
+            <span>棋道指導員が局面と手筋を精査中...</span>
+          `;
+          coachMessagesContainer.appendChild(msgDiv);
+          lucide.createIcons();
+          coachMessagesContainer.scrollTop = coachMessagesContainer.scrollHeight;
+          return;
+        }
+
+        if (type === 'info') {
+          msgDiv.className += ' bg-slate-800/60 border-slate-700/60 text-slate-300';
+        } else if (type === 'error') {
+          msgDiv.className += ' bg-rose-950/30 border-rose-800/40 text-rose-200';
+        } else {
+          msgDiv.className += ' bg-slate-800/90 border-amber-500/20 text-slate-200 shadow-md';
+        }
+
+        const formattedHtml = typeof marked !== 'undefined' ? marked.parse(text) : text;
+        msgDiv.innerHTML = `
+          <div class="flex items-center justify-between text-[11px] font-bold pb-1 mb-1 border-b border-slate-700/50">
+            <span class="text-amber-400 flex items-center gap-1">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+              ${sender}
+            </span>
+            <span class="text-slate-500 font-mono">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</span>
+          </div>
+          <div class="prose prose-invert prose-xs max-w-none space-y-1.5">${formattedHtml}</div>
+        `;
+
+        coachMessagesContainer.appendChild(msgDiv);
+        lucide.createIcons();
+        coachMessagesContainer.scrollTop = coachMessagesContainer.scrollHeight;
+      }
+
+      function removeCoachLoading() {
+        const loading = document.getElementById('coach-loading-bubble');
+        if (loading) loading.remove();
+      }
+
+      // --- Trigger Gemini Coaching Analysis ---
+      async function askGeminiCoach(isSituationCheck = false, isGameOver = false) {
+        if (isCoachLoading) return;
+
+        // Find user's last move
+        let userLastMove = null;
+        for (let i = moveHistory.length - 1; i >= 0; i--) {
+          if (moveHistory[i].color === userColor) {
+            userLastMove = moveHistory[i];
+            break;
+          }
+        }
+
+        if (!isSituationCheck && !isGameOver && !userLastMove) {
+          addCoachMessage('指導員', 'まだあなたが石を打っていません。盤面に一手打ってから指導ボタンを押してください。', 'info');
+          return;
+        }
+
+        isCoachLoading = true;
+        btnAskCoach.disabled = true;
+        btnAskCoach.classList.add('opacity-70');
+        addCoachMessage('', '', 'loading');
+
+        try {
+          const analysisText = await GeminiGoCoach.requestAnalysis({
+            board,
+            history: moveHistory,
+            userColor,
+            targetMove: userLastMove,
+            isSituationCheck,
+            isGameOver
+          });
+          removeCoachLoading();
+          addCoachMessage('Gemini 棋道指導員', analysisText);
+        } catch (err) {
+          removeCoachLoading();
+          console.error('Coach API Error:', err);
+          addCoachMessage(
+            '指導員',
+            `申し訳ありません、解説の取得中にエラーが発生しました。<br><span class="text-slate-400 text-[11px]">※ 右上「API設定」でご自身のGemini APIキーを入力して再度お試しいただくこともできます。</span>`,
+            'error'
+          );
+        } finally {
+          isCoachLoading = false;
+          btnAskCoach.disabled = false;
+          btnAskCoach.classList.remove('opacity-70');
+        }
+      }
+
+      // --- Event Listeners ---
+
+      btnAskCoach.addEventListener('click', () => askGeminiCoach(false, false));
+      btnExplainSit.addEventListener('click', () => askGeminiCoach(true, false));
+
+      btnClearCoach.addEventListener('click', () => {
+        coachMessagesContainer.innerHTML = '';
+        addCoachMessage('指導員', '履歴をクリアしました。気になる手があったらいつでも聞いてください。', 'info');
+      });
+
+      btnPass.addEventListener('click', () => {
+        if (isAiThinking || board.turn !== userColor) return;
+        executeMove(null, null, userColor);
+      });
+
+      btnUndo.addEventListener('click', () => {
+        handleUndo();
+      });
+
+      btnResign.addEventListener('click', () => {
+        if (moveHistory.length === 0) return;
+        const winner = userColor === BLACK ? '白' : '黒';
+        handleGameOver(`${winner}の中押し勝ち（投了）です。お疲れ様でした。`);
+      });
+
+      // Sound toggle
+      btnSoundToggle.addEventListener('click', () => {
+        soundEnabled = !soundEnabled;
+        soundIcon.setAttribute('data-lucide', soundEnabled ? 'volume-2' : 'volume-x');
+        lucide.createIcons();
+      });
+
+      // Settings modal
+      btnOpenSettings.addEventListener('click', () => {
+        inputApiKey.value = localStorage.getItem('user_gemini_api_key') || '';
+        modalApiSettings.classList.remove('hidden');
+      });
+
+      btnSaveKey.addEventListener('click', () => {
+        const key = inputApiKey.value.trim();
+        if (key) {
+          localStorage.setItem('user_gemini_api_key', key);
+        } else {
+          localStorage.removeItem('user_gemini_api_key');
+        }
+        modalApiSettings.classList.add('hidden');
+        addCoachMessage('システム', 'APIキー設定を保存しました。', 'info');
+      });
+
+      // New Game Modal
+      btnNewGameModal.addEventListener('click', () => {
+        modalNewGame.classList.remove('hidden');
+      });
+
+      selectColorBlack.addEventListener('click', () => {
+        selectedNewGameColor = BLACK;
+        selectColorBlack.className = 'py-3 px-4 rounded-xl border-2 border-amber-500 bg-slate-800 text-white font-bold flex items-center justify-center gap-2 transition hover:bg-slate-700';
+        selectColorWhite.className = 'py-3 px-4 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 font-bold flex items-center justify-center gap-2 transition hover:bg-slate-700';
+      });
+
+      selectColorWhite.addEventListener('click', () => {
+        selectedNewGameColor = WHITE;
+        selectColorWhite.className = 'py-3 px-4 rounded-xl border-2 border-amber-500 bg-slate-800 text-white font-bold flex items-center justify-center gap-2 transition hover:bg-slate-700';
+        selectColorBlack.className = 'py-3 px-4 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 font-bold flex items-center justify-center gap-2 transition hover:bg-slate-700';
+      });
+
+      btnStartGameConfirm.addEventListener('click', () => {
+        modalNewGame.classList.add('hidden');
+        startNewGame(selectedNewGameColor);
+      });
+
+      // Game over dialog buttons
+      btnGameOverCoach.addEventListener('click', () => {
+        modalGameOver.classList.add('hidden');
+        askGeminiCoach(false, true);
+      });
+
+      btnGameOverNew.addEventListener('click', () => {
+        modalGameOver.classList.add('hidden');
+        modalNewGame.classList.remove('hidden');
+      });
+
+      // Close modals on click
+      document.querySelectorAll('.modal-close').forEach(btn => {
+        btn.addEventListener('click', () => {
+          modalNewGame.classList.add('hidden');
+          modalApiSettings.classList.add('hidden');
+        });
+      });
+
+      // Initialize icons
+      lucide.createIcons();
+    });
+  </script>
 </body>
 </html>
